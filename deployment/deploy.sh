@@ -1,5 +1,5 @@
 # Set your tag and vars
-export TAG=1.0.0
+export TAG=1.0.1
 export GCP_PROJECT_ID="kmnviz"
 export REGION="europe-west1"
 
@@ -56,3 +56,15 @@ gcloud scheduler jobs create http sb-job-odds-hourly \
   --message-body='{"mode":"hourly"}' \
   --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --oidc-token-audience="${SERVICE_URL}"
+
+## Initial deployment
+gcloud run deploy sb-job-odds \
+  --image=$REGION-docker.pkg.dev/$GCP_PROJECT_ID/sb-job-odds/app:$TAG \
+  --region=$REGION \
+  --set-env-vars="NODE_ENV=production" \
+  --set-env-vars="LOG_LEVEL=info" \
+  --set-env-vars="MONGODB_URI=" \
+  --set-env-vars="SM_API_BASE_URL=https://sm-api.smartbettors.xyz" \
+  --set-env-vars="FIXTURES_BATCH_SIZE=25" \
+  --set-env-vars="FIXTURES_WINDOW_HOURS=24" \
+  --set-env-vars="TARGET_BOOKMAKER_NAME=Pinnacle"

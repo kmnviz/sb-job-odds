@@ -38,7 +38,8 @@ interface DbMarket {
 }
 
 export async function pollOdds(): Promise<PollOddsSummary> {
-  logger.info('Starting odds poll run');
+  const runId = crypto.randomUUID();
+  logger.info('Odds poll run started', {runId});
 
   const batchSize = env.FIXTURES_BATCH_SIZE;
   const windowHours = env.FIXTURES_WINDOW_HOURS;
@@ -48,6 +49,15 @@ export async function pollOdds(): Promise<PollOddsSummary> {
   const now = new Date();
   const capturedAt = now;
   const windowEnd = new Date(now.getTime() + windowHours * 60 * 60 * 1000);
+  logger.info('Odds poll config resolved', {
+    runId,
+    marketType,
+    bookmakerName,
+    batchSize,
+    windowHours,
+    capturedAt: capturedAt.toISOString(),
+    windowEnd: windowEnd.toISOString(),
+  });
 
   const db = mongoose.connection.db;
   if (!db) {
@@ -80,10 +90,18 @@ export async function pollOdds(): Promise<PollOddsSummary> {
     })
     .project({_id: 1, status: 1, kickoffUTC: 1, providers: 1})
     .toArray();
+  logger.info('Hot window matches loaded', {
+    runId,
+    matchesFound: matches.length,
+  });
 
   const fixtureProviderIds = matches
     .map((match) => match.providers?.sportmonks?.id ?? null)
     .filter((id): id is string => Boolean(id));
+  logger.info('Fixture provider ids resolved', {
+    runId,
+    fixtureProviderIds: fixtureProviderIds.length,
+  });
 
   const provider = new SportmonksOddsProvider(new SportmonksOddsClient());
 
@@ -92,6 +110,7 @@ export async function pollOdds(): Promise<PollOddsSummary> {
 
   try {
     const fetched = await provider.fetchOddsByFixtures({
+      runId,
       fixtureProviderIds,
       marketType,
       bookmakerProviderId: String(bookmakerProviderId),
@@ -101,8 +120,15 @@ export async function pollOdds(): Promise<PollOddsSummary> {
     for (const row of fetched) {
       fetchedByFixture.set(row.fixtureProviderId, row.odds);
     }
+    const fetchedOdds = fetched.reduce((acc, row) => acc + row.odds.length, 0);
+    logger.info('Odds fetched and mapped by fixture', {
+      runId,
+      fixturesReturned: fetched.length,
+      fetchedOdds,
+    });
   } catch (error) {
     logger.error('Failed to fetch odds batch', {
+      runId,
       error: error instanceof Error ? error.stack || error.message : String(error),
     });
     errors += fixtureProviderIds.length;
@@ -132,6 +158,10 @@ export async function pollOdds(): Promise<PollOddsSummary> {
       );
     }
   }
+  logger.info('Rows prepared for insert', {
+    runId,
+    rowsPrepared: rowsToInsert.length,
+  });
 
   let rowsInserted = 0;
   if (rowsToInsert.length > 0) {
@@ -140,8 +170,13 @@ export async function pollOdds(): Promise<PollOddsSummary> {
         ordered: false,
       });
       rowsInserted = result.length;
+      logger.info('Odds snapshots insert completed', {
+        runId,
+        rowsInserted,
+      });
     } catch (error) {
       logger.error('Insert odds snapshots failed partially', {
+        runId,
         error: error instanceof Error ? error.stack || error.message : String(error),
       });
       errors += 1;
@@ -155,6 +190,6 @@ export async function pollOdds(): Promise<PollOddsSummary> {
     errors,
   };
 
-  logger.info('Odds poll run finished', summary);
+  logger.info('Odds poll run finished', {runId, ...summary});
   return summary;
 }

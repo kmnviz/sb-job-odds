@@ -33,6 +33,7 @@ export class SportmonksOddsClient {
   private readonly maxAttempts = 6;
 
   async getFixturesWithOdds(params: {
+    runId: string;
     fixtureProviderIds: string[];
     bookmakerProviderId: string;
     marketProviderId: number;
@@ -45,19 +46,61 @@ export class SportmonksOddsClient {
     const batches = chunkArray(numericFixtureIds, params.batchSize);
     const allFixtures: SportmonksFixtureWithOdds[] = [];
 
-    for (const batch of batches) {
+    logger.info('Sportmonks fixtures-with-odds fetch started', {
+      runId: params.runId,
+      requestedFixtureIds: params.fixtureProviderIds.length,
+      validNumericFixtureIds: numericFixtureIds.length,
+      batchSize: params.batchSize,
+      batches: batches.length,
+      bookmakerProviderId: params.bookmakerProviderId,
+      marketProviderId: params.marketProviderId,
+    });
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      const startedAt = Date.now();
       const fixtures = await this.fetchBatch({
+        runId: params.runId,
+        batchIndex: i + 1,
+        totalBatches: batches.length,
         fixtureIds: batch,
         bookmakerProviderId: params.bookmakerProviderId,
         marketProviderId: params.marketProviderId,
       });
       allFixtures.push(...fixtures);
+
+      const returnedOdds = fixtures.reduce(
+        (acc, fixture) => acc + (fixture.odds?.length ?? 0),
+        0
+      );
+      logger.debug('Sportmonks fixtures-with-odds batch completed', {
+        runId: params.runId,
+        batchIndex: i + 1,
+        totalBatches: batches.length,
+        requestedFixtureIds: batch.length,
+        returnedFixtures: fixtures.length,
+        returnedOdds,
+        elapsedMs: Date.now() - startedAt,
+      });
     }
+
+    const totalOdds = allFixtures.reduce(
+      (acc, fixture) => acc + (fixture.odds?.length ?? 0),
+      0
+    );
+    logger.info('Sportmonks fixtures-with-odds fetch finished', {
+      runId: params.runId,
+      returnedFixtures: allFixtures.length,
+      returnedOdds: totalOdds,
+    });
 
     return allFixtures;
   }
 
   private async fetchBatch(params: {
+    runId: string;
+    batchIndex: number;
+    totalBatches: number;
     fixtureIds: number[];
     bookmakerProviderId: string;
     marketProviderId: number;
@@ -72,6 +115,14 @@ export class SportmonksOddsClient {
 
     for (let attempt = 0; attempt < this.maxAttempts; attempt++) {
       try {
+        logger.debug('sm-api fixtures batch request', {
+          runId: params.runId,
+          batchIndex: params.batchIndex,
+          totalBatches: params.totalBatches,
+          attempt: attempt + 1,
+          fixtureIds: params.fixtureIds.length,
+          url: url.toString(),
+        });
         const response = await axios.get<SportmonksFixtureWithOdds[]>(
           url.toString(),
           {timeout: 30000}
@@ -89,6 +140,9 @@ export class SportmonksOddsClient {
 
         const waitMs = 1000 * 2 ** attempt;
         logger.warn('sm-api batch request failed, retrying', {
+          runId: params.runId,
+          batchIndex: params.batchIndex,
+          totalBatches: params.totalBatches,
           status,
           attempt: attempt + 1,
           waitMs,

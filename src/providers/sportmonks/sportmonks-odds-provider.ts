@@ -14,6 +14,7 @@ export class SportmonksOddsProvider implements OddsProvider {
   constructor(private readonly client: SportmonksOddsClient) {}
 
   async fetchOddsByFixtures(params: {
+    runId: string;
     fixtureProviderIds: string[];
     marketType: MarketType;
     bookmakerProviderId: string;
@@ -27,6 +28,7 @@ export class SportmonksOddsProvider implements OddsProvider {
 
     const marketProviderId = getSportmonksMarketId(params.marketType);
     const fixtures = await this.client.getFixturesWithOdds({
+      runId: params.runId,
       fixtureProviderIds: params.fixtureProviderIds,
       bookmakerProviderId: params.bookmakerProviderId,
       marketProviderId,
