@@ -1,37 +1,42 @@
 import type {Types} from 'mongoose';
-import type {OddsSnapshotDocument} from '../models/odds-snapshot.model.js';
+import type {FetchedOdd} from '../types/odds-provider.js';
+import type {MarketType} from '../types/market.js';
 import type {ClosingOdds} from '../types/closing-odds.js';
 
 interface BuildClosingOddsParams {
-  sourceSnapshot: OddsSnapshotDocument;
-  kickoffUtc: Date;
-  resolvedAt: Date;
+  fetchedOdd: FetchedOdd;
+  matchId: Types.ObjectId;
+  marketId: Types.ObjectId;
+  marketType: MarketType;
+  bookmakerId: Types.ObjectId;
+  bookmakerName: string;
+  capturedAt: Date;
 }
 
 export function buildClosingOdds({
-  sourceSnapshot,
-  kickoffUtc,
-  resolvedAt,
+  fetchedOdd,
+  matchId,
+  marketId,
+  marketType,
+  bookmakerId,
+  bookmakerName,
+  capturedAt,
 }: BuildClosingOddsParams): ClosingOdds {
   return {
-    match_id: sourceSnapshot.match_id,
-    market_id: sourceSnapshot.market_id,
-    market_type: sourceSnapshot.market_type,
-    bookmaker_id: sourceSnapshot.bookmaker_id,
-    bookmaker_name: sourceSnapshot.bookmaker_name,
-    outcome: sourceSnapshot.outcome,
-    line: sourceSnapshot.line,
-    team: sourceSnapshot.team,
-    odds_decimal: sourceSnapshot.odds_decimal,
-    implied_probability: sourceSnapshot.implied_probability,
-    captured_at: sourceSnapshot.captured_at,
-    kickoff_utc: kickoffUtc,
-    source_snapshot_id: sourceSnapshot._id as Types.ObjectId,
+    match_id: matchId,
+    market_id: marketId,
+    market_type: marketType,
+    bookmaker_id: bookmakerId,
+    bookmaker_name: bookmakerName,
+    outcome: fetchedOdd.outcome,
+    line: fetchedOdd.line,
+    team: fetchedOdd.team,
+    odds_decimal: fetchedOdd.odds_decimal,
+    implied_probability: fetchedOdd.implied_probability,
+    stopped: fetchedOdd.stopped,
     providers: {
-      sportmonks: {
-        id: sourceSnapshot.providers.sportmonks.id,
-      },
+      sportmonks: {id: fetchedOdd.provider_odd_id},
     },
-    resolved_at: resolvedAt,
+    captured_at: capturedAt,
   };
 }

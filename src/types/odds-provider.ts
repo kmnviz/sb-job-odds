@@ -18,6 +18,7 @@ export interface FetchedFixtureOdds {
 export interface OddsProvider {
   readonly name: 'sportmonks';
   fetchOddsByFixtures(params: {
+    runId: string;
     fixtureProviderIds: string[];
     marketType: MarketType;
     bookmakerProviderId: string;

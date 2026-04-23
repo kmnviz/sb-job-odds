@@ -7,7 +7,7 @@ import {
 import type {MarketType} from './types/market.js';
 import logger from './services/logger.js';
 
-type JobMode = 'odds_snapshots_hourly' | 'closing_odds_5min';
+type JobMode = 'odds_snapshots_hourly' | 'closing_odds_1min';
 
 function parseJobMode(raw: string | undefined): JobMode {
   const value = (raw ?? 'odds_snapshots_hourly').trim();
@@ -20,11 +20,11 @@ function parseJobMode(raw: string | undefined): JobMode {
     }
     return 'odds_snapshots_hourly';
   }
-  if (value === 'closing_odds_5min') {
-    return 'closing_odds_5min';
+  if (value === 'closing_odds_1min') {
+    return 'closing_odds_1min';
   }
   throw new Error(
-    `Invalid JOB_MODE: '${value}'. Allowed: odds_snapshots_hourly, closing_odds_5min.`
+    `Invalid JOB_MODE: '${value}'. Allowed: odds_snapshots_hourly, closing_odds_1min.`
   );
 }
 
@@ -54,17 +54,23 @@ function buildClosingConfigFromEnv(): ResolveClosingOddsConfig {
     throw new Error('CLOSING_MARKETS must list at least one market.');
   }
 
-  const recentWindowHours = process.env.CLOSING_RECENT_WINDOW_HOURS
-    ? Number(process.env.CLOSING_RECENT_WINDOW_HOURS)
+  const upcomingWindowMinutes = process.env.CLOSING_UPCOMING_WINDOW_MINUTES
+    ? Number(process.env.CLOSING_UPCOMING_WINDOW_MINUTES)
     : 2;
   const batchSize = process.env.CLOSING_BATCH_SIZE
     ? Number(process.env.CLOSING_BATCH_SIZE)
-    : 200;
+    : 25;
+
+  if (markets.length !== 1) {
+    throw new Error(
+      `Closing odds v1 supports exactly one market per job. Got: ${markets.join(',')}`
+    );
+  }
 
   return {
     markets,
     targetBookmakerName,
-    recentWindowHours,
+    upcomingWindowMinutes,
     batchSize,
   };
 }
@@ -74,7 +80,7 @@ async function run() {
     await connectDatabase();
     const mode = parseJobMode(process.env.JOB_MODE);
 
-    if (mode === 'closing_odds_5min') {
+    if (mode === 'closing_odds_1min') {
       const config = buildClosingConfigFromEnv();
       const result = await resolveClosingOdds(config);
       logger.info('Closing odds resolve job finished', result);

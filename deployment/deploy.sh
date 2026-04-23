@@ -69,15 +69,17 @@ gcloud scheduler jobs create http sb-job-odds-snapshots-hourly \
   --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --oidc-token-audience="${SERVICE_URL}"
 
-# 5-minute scheduler for resolving closing odds (payload-driven config)
-gcloud scheduler jobs create http sb-job-odds-closing-5min \
+# 1-minute scheduler for resolving closing odds (payload-driven config).
+# Window defaults to upcomingWindowMinutes=2 → each match gets ~2 attempts
+# in [KO-2min, KO] before being frozen by the unique compound index.
+gcloud scheduler jobs create http sb-job-odds-closing-1min \
   --location=$REGION \
-  --schedule="*/5 * * * *" \
+  --schedule="* * * * *" \
   --time-zone="UTC" \
   --http-method=POST \
   --uri="${SERVICE_URL}/run" \
   --headers="Content-Type=application/json" \
-  --message-body='{"mode":"closing_odds_5min","config":{"markets":["asian_handicap"],"targetBookmakerName":"Pinnacle"}}' \
+  --message-body='{"mode":"closing_odds_1min","config":{"markets":["asian_handicap"],"targetBookmakerName":"Pinnacle"}}' \
   --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --oidc-token-audience="${SERVICE_URL}"
 

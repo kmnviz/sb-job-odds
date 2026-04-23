@@ -46,10 +46,12 @@ const snapshotsConfigSchema = z
 
 const closingConfigSchema = z
   .object({
-    markets: z.array(marketTypeSchema).min(1),
+    markets: z
+      .array(marketTypeSchema)
+      .length(1, 'v1 supports exactly one market per closing job'),
     targetBookmakerName: z.string().min(1),
-    recentWindowHours: z.number().int().min(1).max(720).optional(),
-    batchSize: z.number().int().min(1).max(2000).optional(),
+    upcomingWindowMinutes: z.number().int().min(1).max(60).optional(),
+    batchSize: z.number().int().min(1).max(100).optional(),
   })
   .strict();
 
@@ -68,15 +70,15 @@ const runBodySchema = z.discriminatedUnion('mode', [
     .strict(),
   z
     .object({
-      mode: z.literal('closing_odds_5min'),
+      mode: z.literal('closing_odds_1min'),
       config: closingConfigSchema,
     })
     .strict(),
 ]);
 
 const CLOSING_DEFAULTS = {
-  recentWindowHours: 2,
-  batchSize: 200,
+  upcomingWindowMinutes: 2,
+  batchSize: 25,
 };
 
 app.post('/run', async (req: Request, res: Response) => {
@@ -86,7 +88,7 @@ app.post('/run', async (req: Request, res: Response) => {
       res.status(400).json({
         status: 'error',
         message:
-          'Missing or invalid payload. Allowed modes: odds_snapshots_hourly, closing_odds_5min (hourly accepted as transitional alias).',
+          'Missing or invalid payload. Allowed modes: odds_snapshots_hourly, closing_odds_1min (hourly accepted as transitional alias).',
         details: parsedBody.error.flatten(),
       });
       return;
@@ -94,12 +96,13 @@ app.post('/run', async (req: Request, res: Response) => {
 
     const body = parsedBody.data;
 
-    if (body.mode === 'closing_odds_5min') {
+    if (body.mode === 'closing_odds_1min') {
       const effective = {
         markets: body.config.markets,
         targetBookmakerName: body.config.targetBookmakerName,
-        recentWindowHours:
-          body.config.recentWindowHours ?? CLOSING_DEFAULTS.recentWindowHours,
+        upcomingWindowMinutes:
+          body.config.upcomingWindowMinutes ??
+          CLOSING_DEFAULTS.upcomingWindowMinutes,
         batchSize: body.config.batchSize ?? CLOSING_DEFAULTS.batchSize,
       };
       const result = await resolveClosingOdds(effective);

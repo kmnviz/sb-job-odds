@@ -16,11 +16,9 @@ export interface ClosingOdds {
   team: string | null;
   odds_decimal: string;
   implied_probability: string | null;
-  captured_at: Date;
-  kickoff_utc: Date;
-  source_snapshot_id: Types.ObjectId;
+  stopped: boolean;
   providers: ClosingOddsProviders;
-  resolved_at: Date;
+  captured_at: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }

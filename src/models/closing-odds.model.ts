@@ -27,15 +27,13 @@ const closingOddsSchema = new Schema<ClosingOddsDocument>(
     team: {type: String, default: null},
     odds_decimal: {type: String, required: true},
     implied_probability: {type: String, default: null},
-    captured_at: {type: Date, required: true},
-    kickoff_utc: {type: Date, required: true},
-    source_snapshot_id: {type: Schema.Types.ObjectId, required: true},
+    stopped: {type: Boolean, required: true},
     providers: {
       sportmonks: {
         id: {type: String, required: true},
       },
     },
-    resolved_at: {type: Date, required: true},
+    captured_at: {type: Date, required: true},
   },
   {
     timestamps: true,
@@ -47,8 +45,7 @@ closingOddsSchema.index(
   {match_id: 1, market_type: 1, bookmaker_id: 1, outcome: 1},
   {unique: true, name: 'uniq_match_market_bookmaker_outcome'}
 );
-closingOddsSchema.index({kickoff_utc: -1});
-closingOddsSchema.index({source_snapshot_id: 1});
+closingOddsSchema.index({captured_at: -1});
 
 const ClosingOddsModel: Model<ClosingOddsDocument> =
   mongoose.models.ClosingOdds ||
