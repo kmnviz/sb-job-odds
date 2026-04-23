@@ -9,7 +9,14 @@ import type {MarketType} from '../types/market.js';
 import {buildOddsSnapshot} from './odds-snapshot-builder.js';
 import logger from './logger.js';
 
-export interface PollOddsSummary {
+export interface CaptureOddsSnapshotsConfig {
+  markets?: MarketType[];
+  fixturesBatchSize?: number;
+  fixturesWindowHours?: number;
+  targetBookmakerName?: string;
+}
+
+export interface CaptureOddsSnapshotsSummary {
   matchesPolled: number;
   oddsFetched: number;
   rowsInserted: number;
@@ -37,19 +44,32 @@ interface DbMarket {
   outcomes: string[];
 }
 
-export async function pollOdds(): Promise<PollOddsSummary> {
+export async function captureOddsSnapshots(
+  config: CaptureOddsSnapshotsConfig = {}
+): Promise<CaptureOddsSnapshotsSummary> {
   const runId = crypto.randomUUID();
-  logger.info('Odds poll run started', {runId});
+  logger.info('Odds snapshots capture run started', {runId});
 
-  const batchSize = env.FIXTURES_BATCH_SIZE;
-  const windowHours = env.FIXTURES_WINDOW_HOURS;
-  const bookmakerName = env.TARGET_BOOKMAKER_NAME;
-  const marketType: MarketType = 'asian_handicap';
+  const batchSize = config.fixturesBatchSize ?? env.FIXTURES_BATCH_SIZE;
+  const windowHours = config.fixturesWindowHours ?? env.FIXTURES_WINDOW_HOURS;
+  const bookmakerName =
+    config.targetBookmakerName ?? env.TARGET_BOOKMAKER_NAME;
+  const markets: MarketType[] =
+    config.markets && config.markets.length > 0
+      ? config.markets
+      : ['asian_handicap'];
+
+  if (markets.length !== 1 || markets[0] !== 'asian_handicap') {
+    throw new Error(
+      `Only 'asian_handicap' is supported by the current snapshot provider. Got: ${markets.join(',')}`
+    );
+  }
+  const marketType: MarketType = markets[0];
 
   const now = new Date();
   const capturedAt = now;
   const windowEnd = new Date(now.getTime() + windowHours * 60 * 60 * 1000);
-  logger.info('Odds poll config resolved', {
+  logger.info('Odds snapshots capture config resolved', {
     runId,
     marketType,
     bookmakerName,
@@ -183,13 +203,13 @@ export async function pollOdds(): Promise<PollOddsSummary> {
     }
   }
 
-  const summary: PollOddsSummary = {
+  const summary: CaptureOddsSnapshotsSummary = {
     matchesPolled: matches.length,
     oddsFetched: rowsToInsert.length,
     rowsInserted,
     errors,
   };
 
-  logger.info('Odds poll run finished', {runId, ...summary});
+  logger.info('Odds snapshots capture run finished', {runId, ...summary});
   return summary;
 }

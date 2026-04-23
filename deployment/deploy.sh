@@ -1,5 +1,5 @@
 # Set your tag and vars
-export TAG=1.0.1
+export TAG=1.0.2
 export GCP_PROJECT_ID="kmnviz"
 export REGION="europe-west1"
 
@@ -45,7 +45,7 @@ gcloud run services add-iam-policy-binding sb-job-odds \
 
 export SERVICE_URL=$(gcloud run services describe sb-job-odds --region=$REGION --format='value(status.url)')
 
-# Hourly scheduler for polling odds
+# Hourly scheduler for polling odds (transitional alias; delete after cutover)
 gcloud scheduler jobs create http sb-job-odds-hourly \
   --location=$REGION \
   --schedule="0 * * * *" \
@@ -56,6 +56,34 @@ gcloud scheduler jobs create http sb-job-odds-hourly \
   --message-body='{"mode":"hourly"}' \
   --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --oidc-token-audience="${SERVICE_URL}"
+
+# Hourly scheduler for polling odds snapshots (canonical mode name)
+gcloud scheduler jobs create http sb-job-odds-snapshots-hourly \
+  --location=$REGION \
+  --schedule="0 * * * *" \
+  --time-zone="UTC" \
+  --http-method=POST \
+  --uri="${SERVICE_URL}/run" \
+  --headers="Content-Type=application/json" \
+  --message-body='{"mode":"odds_snapshots_hourly"}' \
+  --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --oidc-token-audience="${SERVICE_URL}"
+
+# 5-minute scheduler for resolving closing odds (payload-driven config)
+gcloud scheduler jobs create http sb-job-odds-closing-5min \
+  --location=$REGION \
+  --schedule="*/5 * * * *" \
+  --time-zone="UTC" \
+  --http-method=POST \
+  --uri="${SERVICE_URL}/run" \
+  --headers="Content-Type=application/json" \
+  --message-body='{"mode":"closing_odds_5min","config":{"markets":["asian_handicap"],"targetBookmakerName":"Pinnacle"}}' \
+  --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --oidc-token-audience="${SERVICE_URL}"
+
+# Cutover (after verifying the new schedulers run green):
+#   gcloud scheduler jobs delete sb-job-odds-hourly --location=$REGION
+# Then drop the 'hourly' alias from server.ts in a follow-up deploy.
 
 ## Initial deployment
 gcloud run deploy sb-job-odds \
