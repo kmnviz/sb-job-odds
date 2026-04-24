@@ -1,5 +1,5 @@
 # Set your tag and vars
-export TAG=1.0.2
+export TAG=1.0.3
 export GCP_PROJECT_ID="kmnviz"
 export REGION="europe-west1"
 
@@ -57,7 +57,11 @@ gcloud scheduler jobs create http sb-job-odds-hourly \
   --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --oidc-token-audience="${SERVICE_URL}"
 
-# Hourly scheduler for polling odds snapshots (canonical mode name)
+# Hourly scheduler for capturing pre-match odds snapshots (canonical mode).
+# Polls Sportmonks for the configured market on all pending matches kicking
+# off in the next fixturesWindowHours and appends rows to `odds_snapshots`.
+# Payload is self-describing (market + bookmaker + window). fixturesBatchSize
+# is left to env (FIXTURES_BATCH_SIZE) as a tuning knob.
 gcloud scheduler jobs create http sb-job-odds-snapshots-hourly \
   --location=$REGION \
   --schedule="0 * * * *" \
@@ -65,7 +69,7 @@ gcloud scheduler jobs create http sb-job-odds-snapshots-hourly \
   --http-method=POST \
   --uri="${SERVICE_URL}/run" \
   --headers="Content-Type=application/json" \
-  --message-body='{"mode":"odds_snapshots_hourly"}' \
+  --message-body='{"mode":"odds_snapshots_hourly","config":{"markets":["asian_handicap"],"targetBookmakerName":"Pinnacle","fixturesWindowHours":24}}' \
   --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --oidc-token-audience="${SERVICE_URL}"
 
@@ -79,7 +83,7 @@ gcloud scheduler jobs create http sb-job-odds-closing-1min \
   --http-method=POST \
   --uri="${SERVICE_URL}/run" \
   --headers="Content-Type=application/json" \
-  --message-body='{"mode":"closing_odds_1min","config":{"markets":["asian_handicap"],"targetBookmakerName":"Pinnacle"}}' \
+  --message-body='{"mode":"closing_odds_1min","config":{"markets":["full_time_result"],"targetBookmakerName":"Pinnacle"}}' \
   --oidc-service-account-email="scheduler-invoker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --oidc-token-audience="${SERVICE_URL}"
 
