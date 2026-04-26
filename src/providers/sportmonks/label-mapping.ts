@@ -9,11 +9,11 @@ export function mapAsianHandicapLabelToOutcome(label: string): 'home' | 'away' {
 
 export function mapFullTimeResultLabelToOutcome(
   label: string
-): 'home' | 'draw' | 'away' {
+): 'home_win' | 'draw' | 'away_win' {
   const normalized = label.trim().toLowerCase();
-  if (normalized === '1' || normalized === 'home') return 'home';
+  if (normalized === '1' || normalized === 'home') return 'home_win';
   if (normalized === 'x' || normalized === 'draw') return 'draw';
-  if (normalized === '2' || normalized === 'away') return 'away';
+  if (normalized === '2' || normalized === 'away') return 'away_win';
   throw new Error(`Unsupported Full Time Result label: ${label}`);
 }
 

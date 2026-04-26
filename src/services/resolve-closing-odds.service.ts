@@ -22,6 +22,7 @@ export interface ResolveClosingOddsSummary {
   selectionsResolved: number;
   selectionsMissingSource: number;
   rowsInserted: number;
+  rowsUpgradedFromStopped: number;
   rowsAlreadyPresent: number;
   providerErrors: number;
   errors: number;
@@ -58,6 +59,7 @@ const EMPTY_SUMMARY: ResolveClosingOddsSummary = {
   selectionsResolved: 0,
   selectionsMissingSource: 0,
   rowsInserted: 0,
+  rowsUpgradedFromStopped: 0,
   rowsAlreadyPresent: 0,
   providerErrors: 0,
   errors: 0,
@@ -149,6 +151,7 @@ export async function resolveClosingOdds(
         match_id: {$in: matchIds},
         market_type: marketType,
         bookmaker_id: bookmaker._id,
+        stopped: false,
       },
     },
     {$group: {_id: '$match_id', cnt: {$sum: 1}}},
@@ -270,20 +273,39 @@ export async function resolveClosingOdds(
         capturedAt: now,
       });
       try {
-        const result = await ClosingOddsModel.updateOne(
-          {
-            match_id: doc.match_id,
-            market_type: doc.market_type,
-            bookmaker_id: doc.bookmaker_id,
-            outcome: doc.outcome,
-          },
-          {$setOnInsert: doc},
-          {upsert: true}
-        );
-        if (result.upsertedCount && result.upsertedCount > 0) {
-          summary.rowsInserted += 1;
+        let upgraded = false;
+        if (!doc.stopped) {
+          const upgradeResult = await ClosingOddsModel.updateOne(
+            {
+              match_id: doc.match_id,
+              market_type: doc.market_type,
+              bookmaker_id: doc.bookmaker_id,
+              outcome: doc.outcome,
+              stopped: true,
+            },
+            {$set: doc}
+          );
+          upgraded = (upgradeResult.modifiedCount ?? 0) > 0;
+        }
+
+        if (upgraded) {
+          summary.rowsUpgradedFromStopped += 1;
         } else {
-          summary.rowsAlreadyPresent += 1;
+          const result = await ClosingOddsModel.updateOne(
+            {
+              match_id: doc.match_id,
+              market_type: doc.market_type,
+              bookmaker_id: doc.bookmaker_id,
+              outcome: doc.outcome,
+            },
+            {$setOnInsert: doc},
+            {upsert: true}
+          );
+          if (result.upsertedCount && result.upsertedCount > 0) {
+            summary.rowsInserted += 1;
+          } else {
+            summary.rowsAlreadyPresent += 1;
+          }
         }
       } catch (error) {
         summary.errors += 1;
@@ -306,14 +328,21 @@ export async function resolveClosingOdds(
 }
 
 function pickLineLess(odds: FetchedOdd[]): FetchedOdd[] {
-  const byOutcome = new Map<string, FetchedOdd>();
+  const activeByOutcome = new Map<string, FetchedOdd>();
+  const stoppedByOutcome = new Map<string, FetchedOdd>();
   for (const odd of odds) {
-    if (odd.stopped) continue;
-    if (!byOutcome.has(odd.outcome)) {
-      byOutcome.set(odd.outcome, odd);
+    const bucket = odd.stopped ? stoppedByOutcome : activeByOutcome;
+    if (!bucket.has(odd.outcome)) {
+      bucket.set(odd.outcome, odd);
     }
   }
-  return Array.from(byOutcome.values());
+  const merged = new Map<string, FetchedOdd>(activeByOutcome);
+  for (const [outcome, odd] of stoppedByOutcome) {
+    if (!merged.has(outcome)) {
+      merged.set(outcome, odd);
+    }
+  }
+  return Array.from(merged.values());
 }
 
 function pickAsianHandicapMainLine(odds: FetchedOdd[]): FetchedOdd[] {

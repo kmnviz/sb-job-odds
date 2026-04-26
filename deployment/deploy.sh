@@ -1,5 +1,5 @@
 # Set your tag and vars
-export TAG=1.0.3
+export TAG=1.0.5
 export GCP_PROJECT_ID="kmnviz"
 export REGION="europe-west1"
 
